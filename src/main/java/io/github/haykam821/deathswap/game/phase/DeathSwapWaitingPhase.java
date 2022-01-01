@@ -42,7 +42,7 @@ public class DeathSwapWaitingPhase implements PlayerAttackEntityEvent, GamePlaye
 
 	public static GameOpenProcedure open(GameOpenContext<DeathSwapConfig> context) {
 		DeathSwapConfig config = context.config();
-		DeathSwapMap map = new DeathSwapMap(context.server(), config.getMapConfig());
+		DeathSwapMap map = new DeathSwapMap(context.server(), config.mapConfig());
 
 		RuntimeWorldConfig worldConfig = new RuntimeWorldConfig()
 			.setGenerator(map.getChunkGenerator())
@@ -51,7 +51,7 @@ public class DeathSwapWaitingPhase implements PlayerAttackEntityEvent, GamePlaye
 
 		return context.openWithWorld(worldConfig, (activity, world) -> {
 			DeathSwapWaitingPhase phase = new DeathSwapWaitingPhase(activity.getGameSpace(), world, map, config);
-			GameWaitingLobby.addTo(activity, config.getPlayerConfig());
+			GameWaitingLobby.addTo(activity, config.playerConfig());
 
 			// Rules
 			activity.deny(GameRuleType.BLOCK_DROPS);
@@ -80,7 +80,7 @@ public class DeathSwapWaitingPhase implements PlayerAttackEntityEvent, GamePlaye
 
 	@Override
 	public PlayerOfferResult onOfferPlayer(PlayerOffer offer) {
-		return offer.accept(this.world, DeathSwapActivePhase.getCenterPos(this.world, this.map, this.config.getMapConfig())).and(() -> {
+		return offer.accept(this.world, DeathSwapActivePhase.getCenterPos(this.world, this.map, this.config.mapConfig())).and(() -> {
 			offer.player().setBodyYaw(DeathSwapActivePhase.getSpawnYaw(world));
 			offer.player().changeGameMode(GameMode.ADVENTURE);
 		});
@@ -94,7 +94,7 @@ public class DeathSwapWaitingPhase implements PlayerAttackEntityEvent, GamePlaye
 	@Override
 	public ActionResult onDeath(ServerPlayerEntity player, DamageSource source) {
 		// Respawn player
-		DeathSwapActivePhase.spawnAtCenter(this.world, this.map, this.config.getMapConfig(), player);
+		DeathSwapActivePhase.spawnAtCenter(this.world, this.map, this.config.mapConfig(), player);
 		player.setHealth(player.getMaxHealth());
 
 		return ActionResult.FAIL;

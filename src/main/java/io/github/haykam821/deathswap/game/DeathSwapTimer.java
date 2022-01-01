@@ -30,7 +30,7 @@ public class DeathSwapTimer {
 
 	public DeathSwapTimer(DeathSwapActivePhase phase, GlobalWidgets widgets) {
 		this.phase = phase;
-		this.swapTicks = this.phase.getConfig().getInitialSwapTicks();
+		this.swapTicks = this.phase.getConfig().initialSwapTicks();
 
 		this.widget = widgets.addBossBar(this.getBarTitle(NO_SWAP_TITLE, NO_SWAP_FORMATTING), NO_SWAP_COLOR, STYLE);
 	}
@@ -40,7 +40,7 @@ public class DeathSwapTimer {
 		if (this.swapTicks == 0) {
 			this.swap();
 			this.updateNoSwapBar();
-		} else if (this.swapTicks < this.phase.getConfig().getSwapWarningTicks() && this.swapTicks % 20 == 0) {
+		} else if (this.swapTicks < this.phase.getConfig().swapWarningTicks() && this.swapTicks % 20 == 0) {
 			this.updateWarningBar();
 		}
 	}
@@ -72,7 +72,7 @@ public class DeathSwapTimer {
 			index += 1;
 		} 
 
-		this.swapTicks = this.phase.getConfig().getSwapTicks();
+		this.swapTicks = this.phase.getConfig().swapTicks();
 	}
 
 	private void updateNoSwapBar() {
@@ -84,7 +84,7 @@ public class DeathSwapTimer {
 	private void updateWarningBar() {
 		this.widget.setStyle(WARNING_COLOR, STYLE);
 
-		int swapWarningTicks = this.phase.getConfig().getSwapWarningTicks();
+		int swapWarningTicks = this.phase.getConfig().swapWarningTicks();
 		this.widget.setProgress((swapWarningTicks - this.swapTicks) / (float) swapWarningTicks);
 
 		this.setBarTitle(new TranslatableText("text.deathswap.timer.warning", this.swapTicks / 20), WARNING_FORMATTING);

@@ -8,23 +8,26 @@ import net.minecraft.block.BlockState;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
-import net.minecraft.util.registry.BuiltinRegistries;
+import net.minecraft.util.registry.DynamicRegistryManager;
 import net.minecraft.util.registry.Registry;
+import net.minecraft.util.registry.RegistryKey;
 import net.minecraft.world.ChunkRegion;
 import net.minecraft.world.HeightLimitView;
 import net.minecraft.world.Heightmap;
+import net.minecraft.world.StructureWorldAccess;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.source.BiomeAccess;
 import net.minecraft.world.biome.source.BiomeSource;
-import net.minecraft.world.biome.source.VanillaLayeredBiomeSource;
 import net.minecraft.world.chunk.Chunk;
-import net.minecraft.world.gen.ChunkRandom;
-import net.minecraft.world.gen.GenerationStep.Carver;
+import net.minecraft.world.gen.GenerationStep;
+import net.minecraft.world.gen.GeneratorOptions;
 import net.minecraft.world.gen.StructureAccessor;
+import net.minecraft.world.gen.chunk.Blender;
 import net.minecraft.world.gen.chunk.ChunkGenerator;
-import net.minecraft.world.gen.chunk.ChunkGeneratorSettings;
-import net.minecraft.world.gen.chunk.NoiseChunkGenerator;
 import net.minecraft.world.gen.chunk.VerticalBlockSample;
+import net.minecraft.world.gen.random.ChunkRandom;
+import net.minecraft.world.gen.random.Xoroshiro128PlusPlusRandom;
+
 import xyz.nucleoid.plasmid.game.world.generator.GameChunkGenerator;
 
 public final class DeathSwapChunkGenerator extends GameChunkGenerator {
@@ -37,14 +40,14 @@ public final class DeathSwapChunkGenerator extends GameChunkGenerator {
 		this.mapConfig = mapConfig;
 
 		this.seed = server.getOverworld().getRandom().nextLong();
-		BiomeSource biomeSource = new VanillaLayeredBiomeSource(this.seed, false, false, server.getRegistryManager().get(Registry.BIOME_KEY));
-		
-		ChunkGeneratorSettings chunkGeneratorSettings = BuiltinRegistries.CHUNK_GENERATOR_SETTINGS.get(mapConfig.getChunkGeneratorSettingsId());
-		this.chunkGenerator = new NoiseChunkGenerator(biomeSource, this.seed, () -> chunkGeneratorSettings);
+
+		DynamicRegistryManager registryManager = server.getRegistryManager();
+
+		this.chunkGenerator = GeneratorOptions.createGenerator(registryManager, seed, RegistryKey.of(Registry.CHUNK_GENERATOR_SETTINGS_KEY, mapConfig.chunkGeneratorSettingsId()));
 	}
 
 	private boolean isChunkPosWithinArea(ChunkPos chunkPos) {
-		return chunkPos.x >= 0 && chunkPos.z >= 0 && chunkPos.x < this.mapConfig.getX() && chunkPos.z < this.mapConfig.getZ();
+		return chunkPos.x >= 0 && chunkPos.z >= 0 && chunkPos.x < this.mapConfig.x() && chunkPos.z < this.mapConfig.z();
 	}
 
 	private boolean isChunkWithinArea(Chunk chunk) {
@@ -52,11 +55,11 @@ public final class DeathSwapChunkGenerator extends GameChunkGenerator {
 	}
 
 	@Override
-	public void populateBiomes(Registry<Biome> registry, Chunk chunk) {
+	public CompletableFuture<Chunk> populateBiomes(Registry<Biome> registry, Executor executor, Blender blender, StructureAccessor structures, Chunk chunk) {
 		if (this.isChunkWithinArea(chunk)) {
-			this.chunkGenerator.populateBiomes(registry, chunk);
+			return this.chunkGenerator.populateBiomes(registry, executor, blender, structures, chunk);
 		} else {
-			super.populateBiomes(registry, chunk);
+			return super.populateBiomes(registry, executor, blender, structures, chunk);
 		}
 	}
 
@@ -74,17 +77,18 @@ public final class DeathSwapChunkGenerator extends GameChunkGenerator {
 	}
 
 	@Override
-	public CompletableFuture<Chunk> populateNoise(Executor executor, StructureAccessor structures, Chunk chunk) {
+	public CompletableFuture<Chunk> populateNoise(Executor executor, Blender blender, StructureAccessor structures, Chunk chunk) {
 		if (this.isChunkWithinArea(chunk)) {
-			return this.chunkGenerator.populateNoise(executor, structures, chunk);
+			return this.chunkGenerator.populateNoise(executor, blender, structures, chunk);
+		} else {
+			return super.populateNoise(executor, blender, structures, chunk);
 		}
-		return super.populateNoise(executor, structures, chunk);
 	}
 
 	@Override
-	public void buildSurface(ChunkRegion region, Chunk chunk) {
+	public void buildSurface(ChunkRegion region, StructureAccessor structures, Chunk chunk) {
 		if (this.isChunkWithinArea(chunk)) {
-			this.chunkGenerator.buildSurface(region, chunk);
+			this.chunkGenerator.buildSurface(region, structures, chunk);
 		}
 	}
 
@@ -94,76 +98,60 @@ public final class DeathSwapChunkGenerator extends GameChunkGenerator {
 	}
 
 	@Override
-	public void generateFeatures(ChunkRegion region, StructureAccessor structures) {
-		int chunkX = region.getCenterPos().x;
-		int chunkZ = region.getCenterPos().z;
-
-		ChunkPos chunkPos = new ChunkPos(chunkX, chunkZ);
-		if (!this.isChunkPosWithinArea(chunkPos)) return;
-	
-		BlockPos pos = new BlockPos(chunkX * 16, 0, chunkZ * 16);
-		Biome biome = this.chunkGenerator.getBiomeSource().getBiomeForNoiseGen((chunkX << 2) + 2, 2, (chunkZ << 2) + 2);
-	
-		ChunkRandom random = new ChunkRandom();
-		long populationSeed = random.setPopulationSeed(this.seed, pos.getX(), pos.getZ());
-		
-		biome.generateFeatureStep(structures, this.chunkGenerator, region, populationSeed, random, pos);
-
-		this.generateWalls(chunkX, chunkZ, chunkPos, pos, region);
+	public void generateFeatures(StructureWorldAccess world, Chunk chunk, StructureAccessor structures) {
+		if (this.isChunkWithinArea(chunk)) {
+			this.chunkGenerator.generateFeatures(world, chunk, structures);
+			this.generateWalls(chunk);
+		}
 	}
 
-	private void generateWalls(int chunkX, int chunkZ, ChunkPos chunkPos, BlockPos originPos, ChunkRegion region) {
-		this.generateWalls(chunkX, chunkZ, originPos, region.getChunk(chunkPos.getStartPos()), region.getRandom());
-	}
-
-	private void generateWalls(int chunkX, int chunkZ, BlockPos originPos, Chunk chunk, Random random) {
-		int originX = originPos.getX();
-		int originZ = originPos.getZ();
+	private void generateWalls(Chunk chunk) {
+		int chunkX = chunk.getPos().x;
+		int chunkZ = chunk.getPos().z;
+		int originX = chunkX * 16;
+		int originZ = chunkZ * 16;
+		int bottomY = chunk.getBottomY();
+		int topY = chunk.getTopY();
+		ChunkRandom random = new ChunkRandom(new Xoroshiro128PlusPlusRandom(seed));
 
 		BlockPos.Mutable pos = new BlockPos.Mutable();
 
 		// Top
 		for (int x = 0; x < 16; x++) {
 			for (int z = 0; z < 16; z++) {
-				pos.set(x + originX, 255, z + originZ);
+				pos.set(x + originX, topY, z + originZ);
 				chunk.setBlockState(pos, this.getTopBarrierState(random, pos), false);
 			}
 		}
 
-		// North
-		if (chunkZ == 0) {
+		// Z
+		if (chunkZ == 0) { // North
 			for (int x = 0; x < 16; x++) {
-				for (int y = 0; y < 256; y++) {
+				for (int y = bottomY; y <= topY; y++) {
 					pos.set(x + originX, y, originZ);
 					chunk.setBlockState(pos, this.getBarrierState(random, pos), false);
 				}
 			}
-		}
-
-		// East
-		if (chunkX == this.mapConfig.getX() - 1) {
-			for (int z = 0; z < 16; z++) {
-				for (int y = 0; y < 256; y++) {
-					pos.set(originX + 15, y, z + originZ);
-					chunk.setBlockState(pos, this.getBarrierState(random, pos), false);
-				}
-			}
-		}
-
-		// South
-		if (chunkZ == this.mapConfig.getZ() - 1) {
+		} else if (chunkZ == this.mapConfig.z() - 1) { // South
 			for (int x = 0; x < 16; x++) {
-				for (int y = 0; y < 256; y++) {
+				for (int y = bottomY; y <= topY; y++) {
 					pos.set(x + originX, y, originZ + 15);
 					chunk.setBlockState(pos, this.getBarrierState(random, pos), false);
 				}
 			}
 		}
 
-		// West
-		if (chunkX == 0) {
+		// X
+		if (chunkX == this.mapConfig.x() - 1) { // East
 			for (int z = 0; z < 16; z++) {
-				for (int y = 0; y < 256; y++) {
+				for (int y = bottomY; y <= topY; y++) {
+					pos.set(originX + 15, y, z + originZ);
+					chunk.setBlockState(pos, this.getBarrierState(random, pos), false);
+				}
+			}
+		} else if (chunkX == 0) { // West
+			for (int z = 0; z < 16; z++) {
+				for (int y = bottomY; y <= topY; y++) {
 					pos.set(originX, y, z + originZ);
 					chunk.setBlockState(pos, this.getBarrierState(random, pos), false);
 				}
@@ -172,17 +160,17 @@ public final class DeathSwapChunkGenerator extends GameChunkGenerator {
 	}
 
 	private BlockState getTopBarrierState(Random random, BlockPos pos) {
-		return this.mapConfig.getTopBarrier().getBlockState(random, pos);
+		return this.mapConfig.topBarrier().getBlockState(random, pos);
 	}
 
 	private BlockState getBarrierState(Random random, BlockPos pos) {
-		return this.mapConfig.getBarrier().getBlockState(random, pos);
+		return this.mapConfig.barrier().getBlockState(random, pos);
 	}
 
 	@Override
-	public void carve(long seed, BiomeAccess access, Chunk chunk, Carver carver) {
+	public void carve(ChunkRegion chunkRegion, long seed, BiomeAccess access, StructureAccessor structures, Chunk chunk, GenerationStep.Carver carver) {
 		if (this.isChunkWithinArea(chunk)) {
-			this.chunkGenerator.carve(this.seed, access, chunk, carver);
+			this.chunkGenerator.carve(chunkRegion, this.seed, access, structures, chunk, carver);
 		}
 	}
 
@@ -200,5 +188,20 @@ public final class DeathSwapChunkGenerator extends GameChunkGenerator {
 			return this.chunkGenerator.getColumnSample(x, z, world);
 		}
 		return super.getColumnSample(x, z, world);
+	}
+
+	@Override
+	public int getWorldHeight() {
+		return this.chunkGenerator.getWorldHeight();
+	}
+
+	@Override
+	public int getSeaLevel() {
+		return this.chunkGenerator.getSeaLevel();
+	}
+
+	@Override
+	public int getMinimumY() {
+		return this.chunkGenerator.getMinimumY();
 	}
 }

@@ -80,7 +80,7 @@ public class DeathSwapActivePhase implements GameActivityEvents.Enable, GameActi
 
 		for (ServerPlayerEntity player : this.players) {
 			player.changeGameMode(GameMode.SURVIVAL);
-			DeathSwapActivePhase.spawn(this.world, this.map, this.config.getMapConfig(), player);
+			DeathSwapActivePhase.spawn(this.world, this.map, this.config.mapConfig(), player);
 		}
 	}
 	
@@ -110,7 +110,7 @@ public class DeathSwapActivePhase implements GameActivityEvents.Enable, GameActi
 
 	@Override
 	public PlayerOfferResult onOfferPlayer(PlayerOffer offer) {
-		return offer.accept(this.world, DeathSwapActivePhase.getCenterPos(this.world, this.map, this.config.getMapConfig())).and(() -> {
+		return offer.accept(this.world, DeathSwapActivePhase.getCenterPos(this.world, this.map, this.config.mapConfig())).and(() -> {
 			offer.player().setBodyYaw(DeathSwapActivePhase.getSpawnYaw(world));
 			this.setSpectator(offer.player());
 		});
@@ -197,8 +197,8 @@ public class DeathSwapActivePhase implements GameActivityEvents.Enable, GameActi
 	}
 
 	public static Vec3d getCenterPos(ServerWorld world, DeathSwapMap map, DeathSwapMapConfig mapConfig) {
-		int x = mapConfig.getX() * 8;
-		int z = mapConfig.getZ() * 8;
+		int x = mapConfig.x() * 8;
+		int z = mapConfig.z() * 8;
 
 		int surfaceY = map.getChunkGenerator().getHeight(x, z, Heightmap.Type.WORLD_SURFACE, world);
 

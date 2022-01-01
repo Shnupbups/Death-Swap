@@ -36,3 +36,5 @@ build/
 
 .classpath
 .DS_Store
+
+.idea/
