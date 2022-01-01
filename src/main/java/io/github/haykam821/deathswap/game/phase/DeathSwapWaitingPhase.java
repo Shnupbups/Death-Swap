@@ -12,6 +12,8 @@ import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.GameMode;
 import net.minecraft.world.GameRules;
+import net.minecraft.world.dimension.DimensionType;
+
 import xyz.nucleoid.fantasy.RuntimeWorldConfig;
 import xyz.nucleoid.plasmid.game.GameOpenContext;
 import xyz.nucleoid.plasmid.game.GameOpenProcedure;
@@ -27,18 +29,10 @@ import xyz.nucleoid.stimuli.event.player.PlayerAttackEntityEvent;
 import xyz.nucleoid.stimuli.event.player.PlayerDamageEvent;
 import xyz.nucleoid.stimuli.event.player.PlayerDeathEvent;
 
-public class DeathSwapWaitingPhase implements PlayerAttackEntityEvent, GamePlayerEvents.Offer, PlayerDamageEvent, PlayerDeathEvent, GameActivityEvents.RequestStart {
-	private final GameSpace gameSpace;
-	private final ServerWorld world;
-	private final DeathSwapMap map;
-	private final DeathSwapConfig config;
-
-	public DeathSwapWaitingPhase(GameSpace gameSpace, ServerWorld world, DeathSwapMap map, DeathSwapConfig config) {
-		this.gameSpace = gameSpace;
-		this.world = world;
-		this.map = map;
-		this.config = config;
-	}
+public record DeathSwapWaitingPhase(GameSpace gameSpace,
+									ServerWorld world,
+									DeathSwapMap map,
+									DeathSwapConfig config) implements PlayerAttackEntityEvent, GamePlayerEvents.Offer, PlayerDamageEvent, PlayerDeathEvent, GameActivityEvents.RequestStart {
 
 	public static GameOpenProcedure open(GameOpenContext<DeathSwapConfig> context) {
 		DeathSwapConfig config = context.config();
